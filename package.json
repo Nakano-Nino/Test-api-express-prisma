@@ -1,0 +1,36 @@
+{
+  "name": "express-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon src/index.ts --exec ts-node",
+    "db:migrate": "npx prisma migrate dev --name init --create-only && npx prisma generate",
+    "db:push": "npx prisma db push"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.2",
+    "@types/uuid": "^9.0.8",
+    "nodemon": "^3.1.3",
+    "prisma": "^5.15.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.15.0",
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.1",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^10.0.0"
+  }
+}
