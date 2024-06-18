@@ -85,9 +85,7 @@ export default new (class UserController {
 
       if (error instanceof Prisma.PrismaClientValidationError) {
         return res.status(400).json({
-          status: 400,
           message: error.message,
-          data: null,
         });
       }
     }
@@ -99,7 +97,7 @@ export default new (class UserController {
 
       // Check if user input parameter is valid
       const schema = Joi.object({
-        email: Joi.string().email().required(),
+        email_or_phone: Joi.string().required(),
         password: Joi.string().min(8).required(),
       });
 
@@ -112,10 +110,9 @@ export default new (class UserController {
         });
       }
 
-      // Find user with email on database
-      const user = await prisma.user.findUnique({
+      const user = await prisma.user.findFirst({
         where: {
-          email: input.email,
+          OR: [{ email: input.email_or_phone }, { phone: input.email_or_phone }],
         },
       });
 
