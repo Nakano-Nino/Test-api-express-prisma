@@ -77,17 +77,12 @@ export default new (class UserController {
         data: null,
       });
     } catch (error) {
-      // return res.status(500).json({
-      //   status: 500,
-      //   message: "Internal Server Error",
-      //   error: error,
-      // });
+      return res.status(500).json({
+        status: 500,
+        message: "Internal Server Error",
+        error: error,
+      });
 
-      if (error instanceof Prisma.PrismaClientValidationError) {
-        return res.status(400).json({
-          message: error.message,
-        });
-      }
     }
   }
 
@@ -112,7 +107,10 @@ export default new (class UserController {
 
       const user = await prisma.user.findFirst({
         where: {
-          OR: [{ email: input.email_or_phone }, { phone: input.email_or_phone }],
+          OR: [
+            { email: input.email_or_phone },
+            { phone: input.email_or_phone },
+          ],
         },
       });
 
