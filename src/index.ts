@@ -3,6 +3,7 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import router from "./routes/routes";
+import errorHandler from "./middlewares/errorHandler.middleware";
 
 dotenv.config();
 var cookieParser = require("cookie-parser");
@@ -19,6 +20,8 @@ async function main() {
   app.disable("x-powered-by");
   
   app.use("/api", router)
+
+  app.use(errorHandler)
 
   app.listen(port, () => {
     console.log(`Listening on port ${port}`);

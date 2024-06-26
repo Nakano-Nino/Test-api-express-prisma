@@ -1,11 +1,11 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { prisma } from "..";
 import { v4 as uuidv4 } from "uuid";
 import Joi from "joi";
-import { Prisma } from "@prisma/client";
+import createError from "http-errors";
 
 export default new (class TodoController {
-  async getTodoByUser(req: Request, res: Response) {
+  async getTodoByUser(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = res.locals.loginSession.userId;
       const todo = await prisma.todo.findMany({
@@ -30,13 +30,7 @@ export default new (class TodoController {
         },
       });
 
-      if (todo.length === 0) {
-        return res.status(404).json({
-          status: 404,
-          message: "Todo not found",
-          data: null,
-        });
-      }
+      if (todo.length === 0) throw createError(404, "Todo not found");
 
       return res.status(200).json({
         status: 200,
@@ -44,14 +38,11 @@ export default new (class TodoController {
         data: todo,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 
-  async getTodoByCategory(req: Request, res: Response) {
+  async getTodoByCategory(req: Request, res: Response, next: NextFunction) {
     try {
       const { categoryId } = req.body;
 
@@ -77,13 +68,7 @@ export default new (class TodoController {
         },
       });
 
-      if (result.length === 0) {
-        return res.status(404).json({
-          status: 404,
-          message: "Todo not found",
-          data: null,
-        });
-      }
+      if (result.length === 0) throw createError(404, "Todo not found");
 
       return res.status(200).json({
         status: 200,
@@ -91,17 +76,11 @@ export default new (class TodoController {
         data: result,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientValidationError) {
-        return res.status(400).json({
-          status: 400,
-          message: error.message,
-          data: null,
-        });
-      }
+      next(error);
     }
   }
 
-  async getTodos(req: Request, res: Response) {
+  async getTodos(req: Request, res: Response, next: NextFunction) {
     try {
       const todos = await prisma.todo.findMany({
         select: {
@@ -122,13 +101,7 @@ export default new (class TodoController {
         },
       });
 
-      if (todos.length === 0) {
-        return res.status(404).json({
-          status: 404,
-          message: "Todos not found",
-          data: null,
-        });
-      }
+      if (todos.length === 0) throw createError(404, "Todos not found");
 
       return res.status(200).json({
         status: 200,
@@ -136,14 +109,11 @@ export default new (class TodoController {
         data: todos,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 
-  async createTodo(req: Request, res: Response) {
+  async createTodo(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = res.locals.loginSession.id;
 
@@ -157,13 +127,7 @@ export default new (class TodoController {
 
       const { error } = schema.validate(input);
 
-      if (error) {
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter Invalid",
-          data: null,
-        });
-      }
+      if (error) throw createError(400, error.details[0].message);
 
       const newTodo = await prisma.todo.create({
         data: {
@@ -183,10 +147,7 @@ export default new (class TodoController {
         data: newTodo,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
 
       // if (error instanceof Prisma.PrismaClientValidationError) {
       //   return res.status(400).json({
@@ -198,7 +159,7 @@ export default new (class TodoController {
     }
   }
 
-  async updateTodo(req: Request, res: Response) {
+  async updateTodo(req: Request, res: Response, next: NextFunction) {
     try {
       const todoId = req.params.id;
       const userId = res.locals.loginSession.id;
@@ -212,13 +173,7 @@ export default new (class TodoController {
 
       const { error } = schema.validate(input);
 
-      if (error) {
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter Invalid",
-          data: null,
-        });
-      }
+      if (error) throw createError(400, error.details[0].message);
 
       const check = await prisma.todo.findFirst({
         where: {
@@ -226,21 +181,10 @@ export default new (class TodoController {
         },
       });
 
-      if (!check) {
-        return res.status(404).json({
-          status: 404,
-          message: "Todo Not Found",
-          data: null,
-        });
-      }
+      if (!check) throw createError(404, "Todo not found");
 
-      if (check.userId !== userId) {
-        return res.status(403).json({
-          status: 403,
-          message: "Access Denied, User Not Allowed",
-          data: null,
-        });
-      }
+      if (check.userId !== userId)
+        throw createError(401, "Unauthorized, user not allowed");
 
       const result = await prisma.todo.update({
         where: {
@@ -260,14 +204,11 @@ export default new (class TodoController {
         data: result,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 
-  async deleteTodo(req: Request, res: Response) {
+  async deleteTodo(req: Request, res: Response, next: NextFunction) {
     try {
       const todoId = req.params.id;
       const userId = res.locals.loginSession.id;
@@ -278,21 +219,10 @@ export default new (class TodoController {
         },
       });
 
-      if (!check) {
-        return res.status(404).json({
-          status: 404,
-          message: "Todo Not Found",
-          data: null,
-        });
-      }
+      if (!check) throw createError(404, "Todo not found");
 
-      if (check.userId !== userId) {
-        return res.status(403).json({
-          status: 403,
-          message: "Access Denied, User Not Allowed",
-          data: null,
-        });
-      }
+      if (check.userId !== userId)
+        throw createError(401, "Unauthorized, user not allowed");
 
       await prisma.todo.delete({
         where: {
@@ -306,10 +236,7 @@ export default new (class TodoController {
         data: null,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 })();

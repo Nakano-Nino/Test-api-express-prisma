@@ -1,31 +1,22 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { prisma } from "..";
+import createError from "http-errors";
 
 class AuthMiddleware {
   Authenticate(req: Request, res: Response, next: NextFunction) {
     try {
       const accessToken = req.cookies.accessToken;
 
-      if (!accessToken) {
-        return res.status(401).json({
-          status: 401,
-          message: "Access Denied, No Access Token Provided",
-          data: null,
-        });
-      }
+      if (!accessToken)
+        throw createError(401, "Access Denied, No Access Token");
 
       jwt.verify(
         accessToken,
         `${process.env.ACCESS_TOKEN_KEY}`,
         async (err: any, result: any) => {
-          if (err) {
-            return res.status(401).json({
-              status: 401,
-              message: "Access Denied, Access Token Invalid",
-              data: null,
-            });
-          }
+          if (err)
+            throw createError(401, "Access Denied, Invalid Access Token");
 
           const user = await prisma.user.findUnique({
             select: {
@@ -36,23 +27,14 @@ class AuthMiddleware {
             },
           });
 
-          if (!user) {
-            return res.status(401).json({
-              status: 401,
-              message: "Access Denied, User Not Found",
-              data: null,
-            });
-          }
+          if (!user) throw createError(404, "User Not Found");
 
           res.locals.loginSession = user;
           next();
         }
       );
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 }

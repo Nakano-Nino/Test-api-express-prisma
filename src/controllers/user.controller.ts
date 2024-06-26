@@ -1,13 +1,13 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { prisma } from "..";
-import bcrypt from "bcrypt";
+import * as argon2 from "argon2";
 import Joi from "joi";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
-import { Prisma } from "@prisma/client";
+import createError from "http-errors";
 
 export default new (class UserController {
-  async register(req: Request, res: Response) {
+  async register(req: Request, res: Response, next: NextFunction) {
     try {
       const newUser = req.body;
 
@@ -21,12 +21,7 @@ export default new (class UserController {
       });
 
       const { error } = schema.validate(newUser);
-      if (error)
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter invalid",
-          data: null,
-        });
+      if (error) throw createError(400, error.details[0].message);
 
       // Check if email already used by another user
       const emailCheck = await prisma.user.findUnique({
@@ -34,12 +29,7 @@ export default new (class UserController {
           email: newUser.email,
         },
       });
-      if (emailCheck)
-        return res.status(409).json({
-          status: 409,
-          message: "Email already used",
-          data: null,
-        });
+      if (emailCheck) throw createError(409, "Email already used");
 
       // Check if phone number already used by another user
       const phoneCheck = await prisma.user.findUnique({
@@ -47,16 +37,12 @@ export default new (class UserController {
           phone: newUser.phone,
         },
       });
-      if (phoneCheck)
-        return res.status(409).json({
-          status: 409,
-          message: "Phone already used",
-          data: null,
-        });
+      if (phoneCheck) throw createError(409, "Phone number already used");
 
-      // Hash password using bcrypt
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(newUser.password, salt);
+      // Hash password using argon2
+      const hashedPassword = await argon2.hash(newUser.password, {
+        type: argon2.argon2id,
+      });
 
       // Insert data to database
       await prisma.user.create({
@@ -77,16 +63,11 @@ export default new (class UserController {
         data: null,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: "Internal Server Error",
-        error: error,
-      });
-
+      next(error);
     }
   }
 
-  async login(req: Request, res: Response) {
+  async login(req: Request, res: Response, next: NextFunction) {
     try {
       const input = req.body;
 
@@ -98,11 +79,7 @@ export default new (class UserController {
 
       const { error } = schema.validate(input);
       if (error) {
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter Invalid",
-          data: null,
-        });
+        throw createError(400, error.details[0].message);
       }
 
       const user = await prisma.user.findFirst({
@@ -115,88 +92,107 @@ export default new (class UserController {
       });
 
       if (!user) {
-        return res.status(404).json({
-          status: 404,
-          message: "User Not Found",
-          data: null,
-        });
+        throw createError(404, "User not found");
       }
 
       // Compare inputted password with password saved in database
-      bcrypt.compare(input.password, user.password, (err, result) => {
-        if (err) {
-          return res.status(401).json({
-            status: 401,
-            message: "Wrong Password",
+      // bcrypt.compare(input.password, user.password, (err, result) => {
+      //   if (err) {
+      //     return res.status(401).json({
+      //       status: 401,
+      //       message: "Wrong Password",
+      //       data: null,
+      //     });
+      //   }
+
+      //   // Create Access & Refresh token with userId then save them in cookie
+      //   if (result) {
+      //     const accessToken = jwt.sign(
+      //       { id: user.id },
+      //       `${process.env.ACCESS_TOKEN_KEY}`,
+      //       {
+      //         expiresIn: "15m",
+      //       }
+      //     );
+      //     const refreshToken = jwt.sign(
+      //       { id: user.id },
+      //       `${process.env.REFRESH_TOKEN_KEY}`,
+      //       { expiresIn: "15d" }
+      //     );
+
+      //     return res
+      //       .status(200)
+      //       .cookie("accessToken", accessToken, {
+      //         httpOnly: true,
+      //         secure: false,
+      //         sameSite: "strict",
+      //       })
+      //       .cookie("refreshToken", refreshToken, {
+      //         httpOnly: true,
+      //         secure: false,
+      //         sameSite: "strict",
+      //       })
+      //       .json({
+      //         status: 200,
+      //         message: "Logged in Successfully",
+      //         data: null,
+      //       });
+      //   }
+      // });
+
+      const passwordMatch = await argon2.verify(user.password, input.password);
+      if (!passwordMatch) {
+        throw createError(401, "Wrong Password");
+      } else {
+        const accessToken = jwt.sign(
+          { id: user.id },
+          `${process.env.ACCESS_TOKEN_KEY}`,
+          {
+            expiresIn: "15m",
+          }
+        );
+        const refreshToken = jwt.sign(
+          { id: user.id },
+          `${process.env.REFRESH_TOKEN_KEY}`,
+          { expiresIn: "15d" }
+        );
+
+        return res
+          .status(200)
+          .cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "strict",
+          })
+          .cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "strict",
+          })
+          .json({
+            status: 200,
+            message: "Logged in Successfully",
             data: null,
           });
-        }
-
-        // Create Access & Refresh token with userId then save them in cookie
-        if (result) {
-          const accessToken = jwt.sign(
-            { id: user.id },
-            `${process.env.ACCESS_TOKEN_KEY}`,
-            {
-              expiresIn: "15m",
-            }
-          );
-          const refreshToken = jwt.sign(
-            { id: user.id },
-            `${process.env.REFRESH_TOKEN_KEY}`,
-            { expiresIn: "15d" }
-          );
-
-          return res
-            .status(200)
-            .cookie("accessToken", accessToken, {
-              httpOnly: true,
-              secure: false,
-              sameSite: "strict",
-            })
-            .cookie("refreshToken", refreshToken, {
-              httpOnly: true,
-              secure: false,
-              sameSite: "strict",
-            })
-            .json({
-              status: 200,
-              message: "Logged in Successfully",
-              data: null,
-            });
-        }
-      });
+      }
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 
-  async refreshToken(req: Request, res: Response) {
+  async refreshToken(req: Request, res: Response, next: NextFunction) {
     try {
       const refreshToken = req.cookies.refreshToken;
 
-      if (!refreshToken) {
-        return res.status(401).json({
-          status: 401,
-          message: "Unauthorized, no refresh token provided",
-          data: null,
-        });
-      }
+      if (!refreshToken)
+        throw createError(401, "Unauthorized, no refresh token provided");
 
       jwt.verify(
         refreshToken,
         `${process.env.REFRESH_TOKEN_KEY}`,
         async (err: any, result: any) => {
-          if (err) {
-            return res.status(401).json({
-              status: 401,
-              message: "Unauthorized, refresh token invalid",
-              data: null,
-            });
-          }
+          if (err)
+            throw createError(401, "Unauthorized, invalid refresh token");
 
           const user = await prisma.user.findUnique({
             select: {
@@ -207,13 +203,7 @@ export default new (class UserController {
             },
           });
 
-          if (!user) {
-            return res.status(401).json({
-              status: 401,
-              message: "Unauthorized, user not found",
-              data: null,
-            });
-          }
+          if (!user) throw createError(404, "User not found");
 
           const accessToken = jwt.sign(
             { id: user.id },
@@ -247,10 +237,7 @@ export default new (class UserController {
         }
       );
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: error,
-      });
+      next(error);
     }
   }
 })();

@@ -1,11 +1,12 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { prisma } from "..";
 import { v4 as uuidv4 } from "uuid";
 import Joi from "joi";
 import { Prisma } from "@prisma/client";
+import createError from "http-errors";
 
 export default new (class CategoryController {
-  async getCategory(req: Request, res: Response) {
+  async getCategory(req: Request, res: Response, next: NextFunction) {
     try {
       const categoryId = req.params.id;
 
@@ -15,13 +16,7 @@ export default new (class CategoryController {
         },
       });
 
-      if (!category) {
-        return res.status(404).json({
-          status: 404,
-          message: "Category Not Found",
-          data: null,
-        });
-      }
+      if (!category) throw createError(404, "Category Not Found");
 
       return res.status(200).json({
         status: 200,
@@ -29,25 +24,15 @@ export default new (class CategoryController {
         data: category,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: "Internal Server Error",
-        error: error,
-      });
+      next(error);
     }
   }
 
-  async getCategories(req: Request, res: Response) {
+  async getCategories(req: Request, res: Response, next: NextFunction) {
     try {
       const categories = await prisma.category.findMany();
 
-      if (!categories) {
-        return res.status(404).json({
-          status: 404,
-          message: "Categories Not Found",
-          data: null,
-        });
-      }
+      if (!categories) throw createError(404, "Categories Not Found");
 
       return res.status(200).json({
         status: 200,
@@ -55,15 +40,11 @@ export default new (class CategoryController {
         data: categories,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: "Internal Server Error",
-        data: null,
-      });
+      next(error);
     }
   }
 
-  async createCategories(req: Request, res: Response) {
+  async createCategories(req: Request, res: Response, next: NextFunction) {
     try {
       const newCategories = req.body;
 
@@ -73,12 +54,7 @@ export default new (class CategoryController {
 
       const { error } = schema.validate(newCategories);
 
-      if (error)
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter Invalid",
-          data: null,
-        });
+      if (error) throw createError(400, error.details[0].message);
 
       await prisma.category.create({
         data: {
@@ -95,15 +71,11 @@ export default new (class CategoryController {
         data: null,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: "Internal Server Error",
-        errror: error,
-      });
+      next(error);
     }
   }
 
-  async updateCategory(req: Request, res: Response) {
+  async updateCategory(req: Request, res: Response, next: NextFunction) {
     try {
       const categoryId = req.params.id;
       const newCategory = req.body;
@@ -114,12 +86,7 @@ export default new (class CategoryController {
 
       const { error } = schema.validate(newCategory);
 
-      if (error)
-        return res.status(400).json({
-          status: 400,
-          message: "Parameter Invalid",
-          data: null,
-        });
+      if (error) throw createError(400, error.details[0].message);
 
       const category = await prisma.category.findFirst({
         where: {
@@ -127,13 +94,7 @@ export default new (class CategoryController {
         },
       });
 
-      if (!category) {
-        return res.status(404).json({
-          status: 404,
-          message: "Category Not Found",
-          data: null,
-        });
-      }
+      if (!category) throw createError(404, "Category Not Found");
 
       const result = await prisma.category.update({
         where: {
@@ -151,15 +112,11 @@ export default new (class CategoryController {
         data: result,
       });
     } catch (error) {
-      return res.status(500).json({
-        status: 500,
-        message: "Internal Server Error",
-        error: error,
-      });
+      next(error);
     }
   }
 
-  async deleteCategory(req: Request, res: Response) {
+  async deleteCategory(req: Request, res: Response, next: NextFunction) {
     try {
       const categoryId = req.params.id;
 
@@ -169,16 +126,9 @@ export default new (class CategoryController {
         },
       });
 
-      if (!check) {
-        return res.status(404).json({
-          status: 404,
-          message: "category Not Found",
-          data: null,
-        });
-      }
+      if (!check) throw createError(404, "Category Not Found");
 
       await prisma.category.delete({
-        
         where: {
           id: String(categoryId),
         },
@@ -190,15 +140,7 @@ export default new (class CategoryController {
         data: null,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === "P2003") {
-          return res.status(404).json({
-            status: 404,
-            message: error.message,
-            data: null,
-          });
-        }
-      }
+      next(error);
     }
   }
 })();
